@@ -12,13 +12,10 @@ app.get('/', (req, res) => {
 app.use(express.urlencoded({extended: true}));
 
 let users = []; 
-let exercise = []; 
-let log = []; 
-let userid = 0; 
 
 app.post('/api/users', (req, res) => {
   const uname = req.body.username; 
-  userid++; 
+  const uniqueId = Math.random().toString(36).substring(2)+ Date.now().toString(36); 
 
   if(!uname){
     res.json({
@@ -27,45 +24,58 @@ app.post('/api/users', (req, res) => {
   }else{
     users.push({
       username: uname,
-      id: userid
+      _id: uniqueId,
+      count: 0,
+      log: []
     }); 
 
     res.json({
       username: uname,
-      id: userid
+      _id: uniqueId
     })
   }
 }); 
 
-app.get('/api/allusers', (req, res) => {
+app.get('/api/users', (req, res) => {
   if(!users){
     res.json({
       error: "There are no users"
     });
   }else{
-    res.json({
-      "All users": users
-    });
+    res.json(users);
   }
 }); 
 
 app.post('/api/users/:_id/exercises', (req, res) => {
-  let input_id = parseInt(req.params._id); 
+  let input_id = req.params._id; 
   let newDescription = req.body.description; 
   let newDuration = parseInt(req.body.duration); 
-  let newDate = new Date(req.body.date).toDateString(); 
+  let newDate; 
 
-  if(!(input_id && newDescription && newDuration && newDate)){
+  if (!input_id || !newDescription || isNaN(newDuration)){
     res.json({
       error: "Please fill in all the information"
     })
   }else{
-    const searchUser = users.find(user => user.id === input_id); 
+    const searchUser = users.find(user => user._id === input_id); 
     if(!searchUser){
       res.json({
         error: "There is no user with the provided id."
       }); 
     }else{
+      if(!req.body.date){
+        newDate = new Date().toDateString();
+      }else{
+        newDate = new Date(req.body.date).toDateString();
+      }
+
+      searchUser.count++; 
+      searchUser.log.push({
+        description: newDescription,
+        duration: newDuration, 
+        date: newDate
+      })
+
       res.json({
         _id: input_id,
         username: searchUser.username,
@@ -77,35 +87,52 @@ app.post('/api/users/:_id/exercises', (req, res) => {
   }
 }); 
 
-/*
-Exercise:
-{
-  username: "fcc_test",
-  description: "test",
-  duration: 60,
-  date: "Mon Jan 01 1990",
-  _id: "5fb5853f734231456ccb3b05"
-}
-User:
+app.get('/api/users/:_id/logs' , (req, res) => {
+  const userId = req.params._id; 
+  const {from, to, limit} = req.query; 
 
-{
-  username: "fcc_test",
-  _id: "5fb5853f734231456ccb3b05"
-}
-Log:
+  const user = users.find(user => user._id === userId); 
+  if(!user){
+    return res.json({error: "User not found"}); 
+  }
 
-{
-  username: "fcc_test",
-  count: 1,
-  _id: "5fb5853f734231456ccb3b05",
-  log: [{
-    description: "test",
-    duration: 60,
-    date: "Mon Jan 01 1990",
-  }]
-}
-*/
+  if(!(from) && !(to) && !(limit)){
+    return res.json({
+      _id: user._id, 
+      username: user.username,
+      count: user.count,
+      log: user.log
+    }); 
+  }; 
 
+  let logs = [...user.log];
+
+  if(from){
+    const fromDate = new Date(from); 
+    if(!isNaN(fromDate)){
+      logs = logs.filter(entry => new Date(entry.date) >= fromDate); 
+    }
+  }
+
+  if(to){
+    const toDate = new Date(to); 
+    if(!isNaN(toDate)){
+      logs = logs.filter(entry => new Date(entry.date) <= toDate); 
+    }
+  }
+
+  if(limit){
+    const limitLog = parseInt(limit); 
+    logs = logs.slice(0, limitLog);
+  }
+
+  return res.json({
+    _id: user._id, 
+    username: user.username,
+    count: user.count,
+    log: logs
+  }); 
+}); 
 
 
 
